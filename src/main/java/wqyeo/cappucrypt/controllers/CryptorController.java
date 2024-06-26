@@ -1,5 +1,7 @@
 package wqyeo.cappucrypt.controllers;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,10 +20,10 @@ import java.util.*;
 @Controller
 @RequestMapping(path="/crypt")
 public class CryptorController {
+    private static final Logger log = LoggerFactory.getLogger(CryptorController.class);
     @Autowired
     private EncryptionKeyRepository encryptionKeyRepository;
 
-    public static final String AUTHORIZATION_API_KEY = System.getenv("API_AUTH_KEY");
     public static final EncryptionType DEFAULT_ENCRYPTION_TYPE = EncryptionType.AES_256;
 
     @PostMapping(path="/encrypt")
@@ -34,7 +36,7 @@ public class CryptorController {
         List<String> resultMessages = new ArrayList<>();
         List<String> resultNotes = new ArrayList<>();
 
-        if (authHeader == null || !authHeader.equals(AUTHORIZATION_API_KEY)) {
+        if (authHeader == null || !authHeader.equals(System.getenv("API_AUTH_KEY"))) {
             resultMessages.add("Invalid API key.");
 
             EncryptionResult response = new EncryptionResult("BAD_API_KEY",null, null, resultMessages, resultNotes);
@@ -86,7 +88,16 @@ public class CryptorController {
                 encryptionType = determinedEncryptionType.get();
             }
 
-            key = AESUtils.generateAESKeyString(encryptionType);
+            // Encrypt the new key with master key...
+            try {
+                key = AESUtils.encryptAES(AESUtils.generateAESKeyString(encryptionType), System.getenv("MASTER_KEY"));
+            } catch (Exception e) {
+                log.error("Error using maser key (ENCRYPT) :: ", e);
+                resultMessages.add("Server encountered an error trying to encrypt...");
+                EncryptionResult response = new EncryptionResult("ENCRYPTION_FAILED_FATAL", null, null, resultMessages, resultNotes);
+                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+
             encryptionKey.setEncryptionType(encryptionType);
             encryptionKey.setKey(key);
             encryptionKeyRepository.save(encryptionKey);
@@ -103,11 +114,17 @@ public class CryptorController {
             }
         }
 
+        // Encrypt the content.
         String encryptedContent;
         try {
-            encryptedContent = AESUtils.encryptAES(content, key);
+            // Decrypt with master key to get actual key, then encrypt...
+            String actualKey = AESUtils.decryptAES(key, System.getenv("MASTER_KEY"));
+            encryptedContent = AESUtils.encryptAES(content, actualKey);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("Error encrypting key :: ", e);
+            resultMessages.add("Server encountered an error trying to encrypt...");
+            EncryptionResult response = new EncryptionResult("ENCRYPTION_FAILED_FATAL", null, null, resultMessages, resultNotes);
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         resultNotes.add("ENCRYPTED_WITH_" + encryptionKey.getEncryptionType().name());
@@ -124,7 +141,7 @@ public class CryptorController {
         List<String> resultNotes = new ArrayList<>();
         List<String> resultMessages = new ArrayList<>();
 
-        if (authHeader == null || !authHeader.equals(AUTHORIZATION_API_KEY)) {
+        if (authHeader == null || !authHeader.equals(System.getenv("API_AUTH_KEY"))) {
             resultMessages.add("Invalid API key.");
 
             DecryptionResult response = new DecryptionResult("BAD_API_KEY", null, resultMessages, resultNotes);
@@ -160,18 +177,30 @@ public class CryptorController {
         }
 
         encryptionKey = keyInDatabase.get();
-        String key = encryptionKey.getKey();
 
+        // Unlock key with master key...
+        String key;
+        try {
+            key = AESUtils.decryptAES(encryptionKey.getKey(), System.getenv("MASTER_KEY"));
+        } catch (Exception e) {
+            resultMessages.add("Server encountered an error trying to decrypt...");
+            DecryptionResult response = new DecryptionResult("DECRYPTION_FAILED_FATAL", null, resultMessages, resultNotes);
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        // Try decrypt content...
         String decryptedContent;
         try {
             decryptedContent = AESUtils.decryptAES(content, key);
         } catch (BadPaddingException e) {
             resultMessages.add("Content could not be decrypted. Likely bad ID for encrypted content.");
-
             DecryptionResult response = new DecryptionResult("DECRYPTION_FAILED", null, resultMessages, resultNotes);
             return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("Error using maser key (DECRYPT) :: ", e);
+            resultMessages.add("Server encountered an error trying to decrypt...");
+            DecryptionResult response = new DecryptionResult("DECRYPTION_FAILED_FATAL", null, resultMessages, resultNotes);
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         resultMessages.add("Decrypted content with encryption type: " + encryptionKey.getEncryptionType().name());
