@@ -6,11 +6,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import wqyeo.cappucrypt.AESUtils;
 import wqyeo.cappucrypt.entities.EncryptionKey;
 import wqyeo.cappucrypt.enums.EncryptionType;
 import wqyeo.cappucrypt.records.DecryptionResult;
+import wqyeo.cappucrypt.records.DeleteKeyResult;
 import wqyeo.cappucrypt.records.EncryptionResult;
 import wqyeo.cappucrypt.repositories.EncryptionKeyRepository;
 
@@ -167,17 +169,16 @@ public class CryptorController {
         EncryptionKey encryptionKey;
         Optional<EncryptionKey> keyInDatabase;
 
-        // If ID is provided, try to find encryption key in database first.
+        // Check key's existence in database
         keyInDatabase = encryptionKeyRepository.findById(id);
         if (keyInDatabase.isEmpty()) {
             resultMessages.add("ID not found in database!");
 
             DecryptionResult response = new DecryptionResult("ID_NOT_FOUND", null, resultMessages, resultNotes);
             return new ResponseEntity<>(response, HttpStatus.NOT_ACCEPTABLE);
-        } else {
-            resultMessages.add("ID found in database. Using existing key.");
         }
 
+        resultMessages.add("ID found in database. Using existing key.");
         encryptionKey = keyInDatabase.get();
 
         // Unlock key with master key...
@@ -210,6 +211,33 @@ public class CryptorController {
 
         DecryptionResult response = new DecryptionResult("SUCCESS", decryptedContent, resultMessages, resultNotes);
         return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @PostMapping(path = "/delete")
+    @Transactional
+    public @ResponseBody ResponseEntity<DeleteKeyResult> decryptData(
+            @RequestHeader(name = "Authorization", required = false, defaultValue = "") String authHeader,
+            @RequestParam(required = false, defaultValue = "") String id
+            ) {
+        if (authHeader == null || !authHeader.equals(System.getenv("API_AUTH_KEY"))) {
+            DeleteKeyResult response = new DeleteKeyResult("BAD_API_KEY", "Set API Key in Authorization header!");
+            return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+        }
+
+        if (id.isEmpty() || id.isBlank()) {
+            DeleteKeyResult response = new DeleteKeyResult("EMPTY_ID", "Provided ID is blank or empty!");
+            return new ResponseEntity<>(response, HttpStatus.NOT_ACCEPTABLE);
+        }
+
+
+        Integer deletionResult = encryptionKeyRepository.deleteById(id);
+        if (deletionResult == 1) {
+            DeleteKeyResult response = new DeleteKeyResult("SUCCESS", "Successfully deleted key with provided ID.");
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        }
+
+        DeleteKeyResult response = new DeleteKeyResult("ID_NOT_FOUND", "Provided ID not found in database!");
+        return new ResponseEntity<>(response, HttpStatus.NOT_ACCEPTABLE);
     }
 
     private Optional<EncryptionType> stringToEncryptionType(String encryptionType) {
