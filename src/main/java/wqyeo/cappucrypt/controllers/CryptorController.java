@@ -5,7 +5,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 import wqyeo.cappucrypt.AESUtils;
 import wqyeo.cappucrypt.entities.EncryptionKey;
 import wqyeo.cappucrypt.enums.EncryptionType;
@@ -103,7 +102,7 @@ public class CryptorController {
             }
         }
 
-        String encryptedContent = null;
+        String encryptedContent;
         try {
             encryptedContent = AESUtils.encryptAES(content, key);
         } catch (Exception e) {
@@ -145,7 +144,7 @@ public class CryptorController {
         }
 
         EncryptionKey encryptionKey;
-        Optional<EncryptionKey> keyInDatabase = Optional.empty();
+        Optional<EncryptionKey> keyInDatabase;
 
         // If ID is provided, try to find encryption key in database first.
         keyInDatabase = encryptionKeyRepository.findById(id);
@@ -161,7 +160,7 @@ public class CryptorController {
         encryptionKey = keyInDatabase.get();
         String key = encryptionKey.getKey();
 
-        String decryptedContent = null;
+        String decryptedContent;
         try {
             decryptedContent = AESUtils.decryptAES(content, key);
         } catch (BadPaddingException e) {

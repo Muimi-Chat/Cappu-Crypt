@@ -33,7 +33,7 @@ public class AESUtils {
     }
 
     private static SecretKey generateAESKey(int keySize) {
-        KeyGenerator keyGen = null;
+        KeyGenerator keyGen;
         try {
             keyGen = KeyGenerator.getInstance("AES");
         } catch (NoSuchAlgorithmException e) {

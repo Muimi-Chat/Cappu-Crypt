@@ -4,5 +4,5 @@ import java.io.Serializable;
 public enum EncryptionType implements Serializable {
     AES_128,
     AES_192,
-    AES_256;
+    AES_256
 }
