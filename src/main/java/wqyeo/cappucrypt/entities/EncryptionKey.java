@@ -22,5 +22,5 @@ public class EncryptionKey {
     private EncryptionType encryptionType;
 
     @Column(length = 512, nullable = false)
-    private String key;
+    private String encryptedKey;
 }

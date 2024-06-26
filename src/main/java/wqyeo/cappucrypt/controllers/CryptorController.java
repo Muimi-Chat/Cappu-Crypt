@@ -31,7 +31,8 @@ public class CryptorController {
             @RequestHeader(name="Authorization", required = false, defaultValue = "") String authHeader,
             @RequestParam(required = false, defaultValue = "") String id,
             @RequestParam(name="encryptionType", required = false, defaultValue = "") String encryptionTypeString,
-            @RequestParam(required = false, defaultValue = "") String content
+            @RequestParam(required = false, defaultValue = "") String content,
+            @RequestParam(required = false, defaultValue = "") String metadata
     ) {
         List<String> resultMessages = new ArrayList<>();
         List<String> resultNotes = new ArrayList<>();
@@ -69,7 +70,7 @@ public class CryptorController {
             }
         }
 
-        String key;
+        String encryptedKey;
         if (keyInDatabase.isEmpty()) {
             // Generate and store encryption key into database.
             encryptionKey = new EncryptionKey();
@@ -90,7 +91,7 @@ public class CryptorController {
 
             // Encrypt the new key with master key...
             try {
-                key = AESUtils.encryptAES(AESUtils.generateAESKeyString(encryptionType), System.getenv("MASTER_KEY"));
+                encryptedKey = AESUtils.encryptAES(AESUtils.generateAESKeyString(encryptionType), System.getenv("MASTER_KEY"));
             } catch (Exception e) {
                 log.error("Error using maser key (ENCRYPT) :: ", e);
                 resultMessages.add("Server encountered an error trying to encrypt...");
@@ -99,12 +100,12 @@ public class CryptorController {
             }
 
             encryptionKey.setEncryptionType(encryptionType);
-            encryptionKey.setKey(key);
+            encryptionKey.setEncryptedKey(encryptedKey);
             encryptionKeyRepository.save(encryptionKey);
             resultMessages.add("Created new key for " + id + " with encryption method: " + encryptionKey.getEncryptionType().name());
         } else {
             encryptionKey = keyInDatabase.get();
-            key = encryptionKey.getKey();
+            encryptedKey = encryptionKey.getEncryptedKey();
 
             // Warn if requested encryption type does not match.
             Optional<EncryptionType> determinedEncryptionType = stringToEncryptionType(encryptionTypeString);
@@ -118,8 +119,8 @@ public class CryptorController {
         String encryptedContent;
         try {
             // Decrypt with master key to get actual key, then encrypt...
-            String actualKey = AESUtils.decryptAES(key, System.getenv("MASTER_KEY"));
-            encryptedContent = AESUtils.encryptAES(content, actualKey);
+            String actualKey = AESUtils.decryptAES(encryptedKey, System.getenv("MASTER_KEY"));
+            encryptedContent = AESUtils.encryptAES(content, actualKey, metadata);
         } catch (Exception e) {
             log.error("Error encrypting key :: ", e);
             resultMessages.add("Server encountered an error trying to encrypt...");
@@ -136,7 +137,8 @@ public class CryptorController {
     public @ResponseBody ResponseEntity<DecryptionResult> decryptData(
             @RequestHeader(name = "Authorization", required = false, defaultValue = "") String authHeader,
             @RequestParam(required = false, defaultValue = "") String id,
-            @RequestParam(required = false, defaultValue = "") String content
+            @RequestParam(required = false, defaultValue = "") String content,
+            @RequestParam(required = false, defaultValue = "") String metadata
     ) {
         List<String> resultNotes = new ArrayList<>();
         List<String> resultMessages = new ArrayList<>();
@@ -181,7 +183,7 @@ public class CryptorController {
         // Unlock key with master key...
         String key;
         try {
-            key = AESUtils.decryptAES(encryptionKey.getKey(), System.getenv("MASTER_KEY"));
+            key = AESUtils.decryptAES(encryptionKey.getEncryptedKey(), System.getenv("MASTER_KEY"));
         } catch (Exception e) {
             resultMessages.add("Server encountered an error trying to decrypt...");
             DecryptionResult response = new DecryptionResult("DECRYPTION_FAILED_FATAL", null, resultMessages, resultNotes);
@@ -191,9 +193,9 @@ public class CryptorController {
         // Try decrypt content...
         String decryptedContent;
         try {
-            decryptedContent = AESUtils.decryptAES(content, key);
+            decryptedContent = AESUtils.decryptAES(content, key, metadata);
         } catch (BadPaddingException e) {
-            resultMessages.add("Content could not be decrypted. Likely bad ID for encrypted content.");
+            resultMessages.add("Content could not be decrypted. Likely bad ID for content content.");
             DecryptionResult response = new DecryptionResult("DECRYPTION_FAILED", null, resultMessages, resultNotes);
             return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
         } catch (Exception e) {
