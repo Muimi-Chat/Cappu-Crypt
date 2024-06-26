@@ -90,7 +90,7 @@ public class CryptorController {
             encryptionKey.setEncryptionType(encryptionType);
             encryptionKey.setKey(key);
             encryptionKeyRepository.save(encryptionKey);
-            resultMessages.add("Created new key for " + id + " with encryption method: " + DEFAULT_ENCRYPTION_TYPE.name());
+            resultMessages.add("Created new key for " + id + " with encryption method: " + encryptionKey.getEncryptionType().name());
         } else {
             encryptionKey = keyInDatabase.get();
             key = encryptionKey.getKey();
@@ -99,6 +99,7 @@ public class CryptorController {
             Optional<EncryptionType> determinedEncryptionType = stringToEncryptionType(encryptionTypeString);
             if (determinedEncryptionType.isPresent() && determinedEncryptionType.get() != encryptionKey.getEncryptionType()) {
                 resultMessages.add("Requested Encryption Key Type mismatch in Database. Actual is : " + encryptionKey.getEncryptionType().name());
+                resultNotes.add("ENCRYPTION_REQUEST_TYPE_MISMATCH");
             }
         }
 
@@ -109,6 +110,7 @@ public class CryptorController {
             throw new RuntimeException(e);
         }
 
+        resultNotes.add("ENCRYPTED_WITH_" + encryptionKey.getEncryptionType().name());
         EncryptionResult response = new EncryptionResult("SUCCESS", id, encryptedContent, resultMessages, resultNotes);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
