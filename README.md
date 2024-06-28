@@ -14,9 +14,24 @@ It's great for really small and simple projects, where encryption security is a 
 
 It just comes with 3 API endpoints, one for decrypting, one for encrypting, and one for key deletion.
 
-```sh
-# API Request to Encrypt content with AES_256
-$ curl -X POST -F 'encryptionType=AES_256' -F 'content=Hello, World!' -H 'Authorization: <SNIP>' localhost:8080/crypt/encrypt
+#### Javascript Examples
+```js
+// Send POST Multiform request for encryption...
+const formData = new FormData();
+formData.append('encryptionType', 'AES_256');
+formData.append('content', 'Hello, World!');
+
+fetch('http://localhost:8080/crypt/encrypt', {
+  method: 'POST',
+  headers: {
+    'Authorization': '<SNIP>'
+  },
+  body: formData
+})
+.then(response => response.json())
+.then(data => console.log(data))
+
+// Result ->
 {
   "status": "SUCCESS",
   "id": "2d01a221-c2ff-4d29-ae9e-b79c7bdcb337",
@@ -30,9 +45,25 @@ $ curl -X POST -F 'encryptionType=AES_256' -F 'content=Hello, World!' -H 'Author
     "ENCRYPTED_WITH_AES_256"
   ]
 }
+```
 
-# Decrypt it back!
-$ curl -X POST -F 'id=2d01a221-c2ff-4d29-ae9e-b79c7bdcb337' -F 'content=JC5TeDwH+ugji+yBKmuXlqdHgqUw8dY8Z9MXoqODlZiqseDZgD0/AGo=' -H 'Authorization: <SNIP>' localhost:8080/crypt/decrypt
+```js
+// POST Request to decrypt it back!
+const formData = new FormData();
+formData.append('id', '2d01a221-c2ff-4d29-ae9e-b79c7bdcb337');
+formData.append('content', 'JC5TeDwH+ugji+yBKmuXlqdHgqUw8dY8Z9MXoqODlZiqseDZgD0/AGo=');
+
+fetch('http://localhost:8080/crypt/decrypt', {
+  method: 'POST',
+  headers: {
+    'Authorization': '<SNIP>'
+  },
+  body: formData
+})
+.then(response => response.json())
+.then(data => console.log(data))
+
+// Result ->
 {
   "status": "SUCCESS",
   "decryptedContent": "Hello, World!",
