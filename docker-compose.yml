@@ -1,8 +1,6 @@
 services:
   cappu-api:
     build: .
-    ports:
-      - ${API_PORT}:8080
     env_file:
       - .env
     environment:
@@ -11,6 +9,8 @@ services:
       - .:/app
     depends_on:
       - cappu-database
+    networks:
+      - muimi_container_network  
 
   cappu-database:
     image: postgres:14.12
@@ -18,7 +18,11 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "${POSTGRESQL_EXPOSED_PORT}:5432"
     volumes:
-      - ./pgdata:/var/lib/postgresql/data:z
+      - ./pgdata:/var/lib/postgresql/data
+    networks:
+      - muimi_container_network  
+
+networks:
+  muimi_container_network:
+    external: true
